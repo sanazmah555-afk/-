@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+    <title>CryptoPilot Pro | اسکنر موبایل</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        body { background: #04070d; color: #f1f5f9; font-family: system-ui, sans-serif; -webkit-tap-highlight-color: transparent; }
+        .glass { background: rgba(15, 23, 42, 0.8); backdrop-filter: blur(12px); border: 1px solid rgba(30, 41, 59, 0.6); }
+        .card-enter { animation: slideIn 0.3s ease-out; }
+        @keyframes slideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .score-ring { transition: stroke-dashoffset 1s ease-out; }
+    </style>
+</head>
+<body class="min-h-screen pb-20">
+
+    <!-- Header چسبان -->
+    <header class="sticky top-0 z-40 glass border-b border-slate-800 px-4 py-3">
+        <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+                <div class="p-1.5 bg-indigo-500/20 rounded-lg">
+                    <i data-lucide="radar" class="w-5 h-5 text-indigo-400"></i>
+                </div>
+                <div>
+                    <h1 class="text-sm font-bold text-white">CryptoPilot Pro</h1>
+                    <div class="flex items-center gap-1.5 text-[10px] text-slate-400">
+                        <span class="relative flex h-1.5 w-1.5">
+                            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                            <span class="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
+                        </span>
+                        LIVE • ۱۵ ارز
+                    </div>
+                </div>
+            </div>
+            <button onclick="scanAll()" id="scan-btn" class="flex items-center gap-1.5 px-3 py-2 bg-indigo-600 hover:bg-indigo-500 rounded-xl text-xs font-bold">
+                <i data-lucide="search" class="w-4 h-4"></i>
+                اسکن
+            </button>
+        </div>
+    </header>
+
+    <!-- آمار سریع -->
+    <div class="grid grid-cols-3 gap-2 px-4 py-3">
+        <div class="glass rounded-xl p-2 text-center">
+            <div class="text-[10px] text-slate-400">اسکن‌شده</div>
+            <div id="stat-scanned" class="text-lg font-bold font-mono text-white">0</div>
+        </div>
+        <div class="glass rounded-xl p-2 text-center">
+            <div class="text-[10px] text-slate-400">خرید قوی</div>
+            <div id="stat-strong" class="text-lg font-bold font-mono text-emerald-400">0</div>
+        </div>
+        <div class="glass rounded-xl p-2 text-center">
+            <div class="text-[10px] text-slate-400">فروش قوی</div>
+            <div id="stat-sell" class="text-lg font-bold font-mono text-rose-400">0</div>
+        </div>
+    </div>
+
+    <!-- فیلتر -->
+    <div class="flex gap-2 px-4 pb-3 overflow-x-auto scrollbar-none">
+        <button onclick="filterSignals('ALL')" class="filter-btn active shrink-0 px-3 py-1.5 rounded-full text-xs font-bold bg-indigo-600 text-white">همه</button>
+        <button onclick="filterSignals('STRONG_BUY')" class="filter-btn shrink-0 px-3 py-1.5 rounded-full text-xs font-bold bg-slate-800 text-slate-300">🟢 خرید قوی</button>
+        <button onclick="filterSignals('BUY')" class="filter-btn shrink-0 px-3 py-1.5 rounded-full text-xs font-bold bg-slate-800 text-slate-300">🟢 خرید</button>
+        <button onclick="filterSignals('SELL')" class="filter-btn shrink-0 px-3 py-1.5 rounded-full text-xs font-bold bg-slate-800 text-slate-300">🔴 فروش</button>
+        <button onclick="filterSignals('STRONG_SELL')" class="filter-btn shrink-0 px-3 py-1.5 rounded-full text-xs font-bold bg-slate-800 text-slate-300">🔴 فروش قوی</button>
+    </div>
+
+    <!-- Loading -->
+    <div id="loading" class="hidden px-4 py-8 text-center">
+        <i data-lucide="loader-2" class="w-8 h-8 text-indigo-400 animate-spin mx-auto mb-3"></i>
+        <p class="text-sm text-slate-300">در حال اسکن بازار...</p>
+        <p id="loading-progress" class="text-xs text-slate-500 font-mono mt-1">0 / 15</p>
+    </div>
+
+    <!-- کارت‌های نتایج -->
+    <div id="results" class="px-4 space-y-3">
+        <div class="glass rounded-2xl p-8 text-center">
+            <i data-lucide="radar" class="w-12 h-12 text-slate-600 mx-auto mb-3"></i>
+            <p class="text-sm text-slate-400">برای شروع، روی دکمه "اسکن" بالا کلیک کنید</p>
+        </div>
+    </div>
+
+    <!-- مودال جزئیات -->
+    <div id="modal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-end md:items-center justify-center" onclick="if(event.target===this)closeModal()">
+        <div class="glass rounded-t-3xl md:rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div id="modal-content" class="p-5"></div>
+        </div>
+    </div>
+
+    <script>
+        const SYMBOLS = ['BTCUSDT','ETHUSDT','BNBUSDT','SOLUSDT','XRPUSDT','ADAUSDT','DOGEUSDT','AVAXUSDT','DOTUSDT','MATICUSDT','LINKUSDT','LTCUSDT','ATOMUSDT','UNIUSDT','NEARUSDT'];
+        let allResults = [];
+        let currentFilter = 'ALL';
+
+        function calculateRSI(c, p=14) {
+            if (c.length < p+1) return 50;
+            let ag=0, al=0;
+            for (let i=1; i<=p; i++) { const ch=c[i]-c[i-1]; if(ch>0)ag+=ch; else al+=Math.abs(ch); }
+            ag/=p; al/=p;
+            for (let i=p+1; i<c.length; i++) {
+                const ch=c[i]-c[i-1];
+                ag=(ag*(p-1)+(ch>0?ch:0))/p;
+                al=(al*(p-1)+(ch<0?Math.abs(ch):0))/p;
+            }
+            if(al===0)return 100;
+            return 100-(100/(1+ag/al));
+        }
+        function calculateEMA(c, p) {
+            const k=2/(p+1); let e=c[0];
+            for(let i=1;i<c.length;i++) e=c[i]*k+e*(1-k);
+            return e;
+        }
+        function calculateATR(h, l, c, p=14) {
+            if(c.length<p+1)return 0; let s=0;
+            for(let i=1;i<=p;i++) s+=Math.max(h[i]-l[i], Math.abs(h[i]-c[i-1]), Math.abs(l[i]-c[i-1]));
+            return s/p;
+        }
+
+        function analyze(symbol, klines) {
+            const c = klines.map(k=>parseFloat(k[4]));
+            const h = klines.map(k=>parseFloat(k[2]));
+            const l = klines.map(k=>parseFloat(k[3]));
+            const v = klines.map(k=>parseFloat(k[5]));
+            
+            const price = c[c.length-1];
+            const change24 = ((price-c[0])/c[0])*100;
+            const rsi = calculateRSI(c);
+            const ema9 = calculateEMA(c,9);
+            const ema21 = calculateEMA(c,21);
+            const ema50 = calculateEMA(c,50);
+            const ema200 = calculateEMA(c, Math.min(200, c.length));
+            const atr = calculateATR(h,l,c);
+            const avgVol = v.slice(-20).reduce((a,b)=>a+b,0)/20;
+            const volRatio = v[v.length-1]/avgVol;
+
+            let score=50, reasons=[], strategies=[];
+
+            // روند
+            if (price>ema9 && ema9>ema21 && ema21>ema50) { score+=25; reasons.push('✅ هم‌ترازی EMA صعودی'); strategies.push('Trend'); }
+            else if (price<ema9 && ema9<ema21 && ema21<ema50) { score-=25; reasons.push('❌ هم‌ترازی EMA نزولی'); strategies.push('Trend'); }
+            else if (price>ema21) { score+=10; reasons.push('📈 بالای EMA21'); }
+            else { score-=10; reasons.push('📉 زیر EMA21'); }
+
+            // مومنتوم
+            if (rsi<30) { score+=20; reasons.push('🔥 RSI اشباع فروش'); strategies.push('RSI Reversal'); }
+            else if (rsi>70) { score-=20; reasons.push('⚠️ RSI اشباع خرید'); strategies.push('RSI Reversal'); }
+
+            // حجم
+            if (volRatio>2 && change24>0) { score+=20; reasons.push(`💹 حجم ${volRatio.toFixed(1)}x + صعودی`); strategies.push('Volume'); }
+            else if (volRatio>2 && change24<0) { score-=20; reasons.push(`💹 حجم ${volRatio.toFixed(1)}x + نزولی`); strategies.push('Volume'); }
+
+            // ساختار
+            const dist200 = ((price-ema200)/ema200)*100;
+            if (dist200>5) { score+=15; reasons.push('🏗️ روند بلندمدت صعودی'); }
+            else if (dist200<-5) { score-=15; reasons.push('🏗️ روند بلندمدت نزولی'); }
+
+            score = Math.max(0, Math.min(100, score));
+
+            let signal, color, bg, icon;
+            if (score>=80) { signal='خرید قوی'; color='text-emerald-400'; bg='border-emerald-500/40 bg-emerald-500/10'; icon='🟢'; }
+            else if (score>=65) { signal='خرید'; color='text-green-400'; bg='border-green-500/30 bg-green-500/5'; icon='🟢'; }
+            else if (score<=20) { signal='فروش قوی'; color='text-rose-400'; bg='border-rose-500/40 bg-rose-500/10'; icon='🔴'; }
+            else if (score<=35) { signal='فروش'; color='text-red-400'; bg='border-red-500/30 bg-red-500/5'; icon='🔴'; }
+            else { signal='خنثی'; color='text-slate-400'; bg='border-slate-500/30 bg-slate-500/5'; icon='⚪'; }
+
+            const isLong = score>=50;
+            const entry = price;
+            const sl = isLong ? entry-(atr*1.5) : entry+(atr*1.5);
+            const tp1 = isLong ? entry+(atr*2) : entry-(atr*2);
+            const tp2 = isLong ? entry+(atr*3) : entry-(atr*3);
+            const tp3 = isLong ? entry+(atr*5) : entry-(atr*5);
+            const rr = Math.abs((tp1-entry)/(entry-sl)).toFixed(2);
+
+            return { symbol, price, change24, rsi, ema21, ema50, trend: price>ema50?'صعودی':'نزولی', score, signal, color, bg, icon, entry, sl, tp1, tp2, tp3, rr, atr, volRatio, reasons, strategies };
+        }
+
+        async function scanAll() {
+            const loading = document.getElementById('loading');
+            const results = document.getElementById('results');
+            const btn = document.getElementById('scan-btn');
+            const progress = document.getElementById('loading-progress');
+            
+            loading.classList.remove('hidden');
+            results.classList.add('hidden');
+            btn.disabled = true;
+            btn.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i>';
+            lucide.createIcons();
+
+            allResults = [];
+            let completed = 0;
+
+            for (let i=0; i<SYMBOLS.length; i+=3) {
+                const batch = SYMBOLS.slice(i, i+3);
+                await Promise.all(batch.map(async (sym) => {
+                    try {
+                        const res = await fetch(`https://api.binance.com/api/v3/klines?symbol=${sym}&interval=1h&limit=200`);
+                        const data = await res.json();
+                        if (data && data.length>0) allResults.push(analyze(sym, data));
+                    } catch(e) { console.error(e); }
+                    completed++;
+                    progress.innerText = `${completed} / ${SYMBOLS.length}`;
+                }));
+                await new Promise(r=>setTimeout(r, 300));
+            }
+
+            allResults.sort((a,b) => Math.abs(b.score-50) - Math.abs(a.score-50));
+            renderResults();
+            
+            loading.classList.add('hidden');
+            results.classList.remove('hidden');
+            btn.disabled = false;
+            btn.innerHTML = '<i data-lucide="search" class="w-4 h-4"></i>';
+            lucide.createIcons();
+
+            document.getElementById('stat-scanned').innerText = allResults.length;
+            document.getElementById('stat-strong').innerText = allResults.filter(r=>r.signal==='خرید قوی').length;
+            document.getElementById('stat-sell').innerText = allResults.filter(r=>r.signal==='فروش قوی').length;
+        }
+
+        function renderResults() {
+            const container = document.getElementById('results');
+            const filtered = currentFilter==='ALL' ? allResults : allResults.filter(r => {
+                if (currentFilter==='STRONG_BUY') return r.signal==='خرید قوی';
+                if (currentFilter==='BUY') return r.signal==='خرید';
+                if (currentFilter==='SELL') return r.signal==='فروش';
+                if (currentFilter==='STRONG_SELL') return r.signal==='فروش قوی';
+                return true;
+            });
+            
+            if (filtered.length===0) {
+                container.innerHTML = '<div class="glass rounded-2xl p-8 text-center text-slate-500 text-sm">سیگنالی یافت نشد</div>';
+                return;
+            }
+
+            container.innerHTML = filtered.map(r => `
+                <div onclick='showDetail(${JSON.stringify(r).replace(/'/g,"&apos;")})' class="card-enter glass rounded-2xl p-4 border-2 ${r.bg} active:scale-[0.98] transition-transform">
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="flex items-center gap-2">
+                            <div class="w-10 h-10 rounded-xl bg-slate-800 flex items-center justify-center font-bold text-white">
+                                ${r.symbol.replace('USDT','').slice(0,2)}
+                            </div>
+                            <div>
+                                <div class="font-bold text-white text-sm">${r.symbol.replace('USDT','')}<span class="text-slate-500 text-xs">/USDT</span></div>
+                                <div class="text-[10px] ${r.change24>=0?'text-emerald-400':'text-rose-400'} font-mono">
+                                    ${r.change24>=0?'▲':'▼'} ${Math.abs(r.change24).toFixed(2)}%
+                                </div>
+                            </div>
+                        </div>
+                        <div class="text-left">
+                            <div class="text-sm font-bold font-mono text-white">$${r.price.toLocaleString(undefined,{maximumFractionDigits:2})}</div>
+                            <div class="text-[10px] ${r.color} font-bold">${r.icon} ${r.signal}</div>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center justify-between text-[11px] mb-2">
+                        <div class="flex items-center gap-1">
+                            <span class="text-slate-400">امتیاز:</span>
+                            <span class="font-bold font-mono text-white">${r.score}</span>
+                        </div>
+                        <div class="flex items-center gap-1">
+                            <span class="text-slate-400">RSI:</span>
+                            <span class="font-mono ${r.rsi>70?'text-rose-400':r.rsi<30?'text-emerald-400':'text-slate-300'}">${r.rsi.toFixed(0)}</span>
+                        </div>
+                        <div class="flex items-center gap-1">
+                            <span class="text-slate-400">روند:</span>
+                            <span class="${r.trend==='صعودی'?'text-emerald-400':'text-rose-400'} font-bold">${r.trend}</span>
+                        </div>
+                    </div>
+
+                    <div class="flex gap-2 text-[10px] font-mono">
+                        <div class="flex-1 bg-slate-900/50 rounded-lg p-2 text-center">
+                            <div class="text-slate-500">Entry</div>
+                            <div class="text-white font-bold">$${r.entry.toFixed(2)}</div>
+                        </div>
+                        <div class="flex-1 bg-rose-500/10 border border-rose-500/20 rounded-lg p-2 text-center">
+                            <div class="text-rose-400">SL</div>
+                            <div class="text-rose-300 font-bold">$${r.sl.toFixed(2)}</div>
+                        </div>
+                        <div class="flex-1 bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-2 text-center">
+                            <div class="text-emerald-400">TP1</div>
+                            <div class="text-emerald-300 font-bold">$${r.tp1.toFixed(2)}</div>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function filterSignals(f) {
+            currentFilter = f;
+            document.querySelectorAll('.filter-btn').forEach(b => {
+                b.classList.remove('bg-indigo-600','text-white');
+                b.classList.add('bg-slate-800','text-slate-300');
+            });
+            event.target.classList.remove('bg-slate-800','text-slate-300');
+            event.target.classList.add('bg-indigo-600','text-white');
+            renderResults();
+        }
+
+        function showDetail(r) {
+            const modal = document.getElementById('modal');
+            const content = document.getElementById('modal-content');
+            
+            content.innerHTML = `
+                <div class="flex items-center justify-between mb-4 pb-3 border-b border-slate-700">
+                    <div class="flex items-center gap-3">
+                        <div class="w-12 h-12 rounded-xl bg-slate-800 flex items-center justify-center font-bold text-white text-lg">
+                            ${r.symbol.replace('USDT','').slice(0,2)}
+                        </div>
+                        <div>
+                            <h2 class="text-lg font-bold text-white">${r.symbol}</h2>
+                            <div class="text-xs ${r.color} font-bold">${r.icon} ${r.signal} • امتیاز ${r.score}/100</div>
+                        </div>
+                    </div>
+                    <button onclick="closeModal()" class="p-2 hover:bg-slate-700 rounded-lg">
+                        <i data-lucide="x" class="w-5 h-5"></i>
+                    </button>
+                </div>
+
+                <div class="grid grid-cols-2 gap-2 mb-4">
+                    <div class="bg-slate-900/50 rounded-xl p-3">
+                        <div class="text-[10px] text-slate-400">قیمت فعلی</div>
+                        <div class="text-base font-bold font-mono text-white">$${r.price.toLocaleString(undefined,{maximumFractionDigits:4})}</div>
+                    </div>
+                    <div class="bg-slate-900/50 rounded-xl p-3">
+                        <div class="text-[10px] text-slate-400">تغییر ۲۴ ساعت</div>
+                        <div class="text-base font-bold font-mono ${r.change24>=0?'text-emerald-400':'text-rose-400'}">${r.change24>=0?'+':''}${r.change24.toFixed(2)}%</div>
+                    </div>
+                </div>
+
+                <h3 class="text-xs font-bold text-white mb-2 flex items-center gap-1">
+                    <i data-lucide="target" class="w-4 h-4 text-cyan-400"></i>
+                    سطوح معامله
+                </h3>
+                <div class="grid grid-cols-2 gap-2 mb-4 text-xs font-mono">
+                    <div class="bg-slate-900/50 rounded-lg p-2.5">
+                        <div class="text-[10px] text-slate-400">ورود (Entry)</div>
+                        <div class="text-white font-bold">$${r.entry.toFixed(4)}</div>
+                    </div>
+                    <div class="bg-rose-500/10 border border-rose-500/30 rounded-lg p-2.5">
+                        <div class="text-[10px] text-rose-400">حد ضرر (SL)</div>
+                        <div class="text-rose-300 font-bold">$${r.sl.toFixed(4)}</div>
+                    </div>
+                    <div class="bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-2.5">
+                        <div class="text-[10px] text-emerald-400">هدف ۱ (TP1)</div>
+                        <div class="text-emerald-300 font-bold">$${r.tp1.toFixed(4)}</div>
+                    </div>
+                    <div class="bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-2.5">
+                        <div class="text-[10px] text-emerald-400">هدف ۲ (TP2)</div>
+                        <div class="text-emerald-300 font-bold">$${r.tp2.toFixed(4)}</div>
+                    </div>
+                    <div class="bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-2.5 col-span-2">
+                        <div class="text-[10px] text-emerald-400">هدف ۳ (TP3) - بلندمدت</div>
+                        <div class="text-emerald-300 font-bold">$${r.tp3.toFixed(4)}</div>
+                    </div>
+                    <div class="bg-indigo-500/10 border border-indigo-500/30 rounded-lg p-2.5 col-span-2">
+                        <div class="text-[10px] text-indigo-400">نسبت ریسک به ریوارد (R/R)</div>
+                        <div class="text-indigo-300 font-bold text-base">${r.rr} : 1</div>
+                    </div>
+                </div>
+
+                <h3 class="text-xs font-bold text-white mb-2 flex items-center gap-1">
+                    <i data-lucide="zap" class="w-4 h-4 text-yellow-400"></i>
+                    استراتژی‌های فعال
+                </h3>
+                <div class="flex flex-wrap gap-1.5 mb-4">
+                    ${r.strategies.length>0 ? r.strategies.map(s=>`<span class="px-2 py-1 bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 rounded-full text-[10px]">${s}</span>`).join('') : '<span class="text-slate-500 text-[10px]">استراتژی خاصی فعال نیست</span>'}
+                </div>
+
+                <h3 class="text-xs font-bold text-white mb-2 flex items-center gap-1">
+                    <i data-lucide="list-checks" class="w-4 h-4 text-emerald-400"></i>
+                    دلایل تحلیل
+                </h3>
+                <div class="space-y-1.5 mb-4">
+                    ${r.reasons.map(reason=>`<div class="bg-slate-900/50 rounded-lg p-2.5 text-[11px] text-slate-300">${reason}</div>`).join('')}
+                </div>
+
+                <div class="p-3 rounded-xl bg-yellow-500/10 border border-yellow-500/20 text-yellow-200 text-[10px] text-center">
+                    ⚠️ این تحلیل صرفاً تکنیکال است. قبل از معامله حتماً اخبار و مدیریت ریسک را بررسی کنید.
+                </div>
+            `;
+            
+            modal.classList.remove('hidden');
+            lucide.createIcons();
+        }
+
+        function closeModal() {
+            document.getElementById('modal').classList.add('hidden');
+        }
+
+        lucide.createIcons();
+    </script>
+</body>
+</html>
